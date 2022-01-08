@@ -10,6 +10,82 @@ Managed Secrets makes this easy by giving you a YAML format for defining, storin
 
 Redefining, i.e. 'rotating' secrets, and audit logging regarding who accessed what secret and when are easy- it's all in the YAML file that you check in to version control ala [Gitops](https://www.weave.works/technologies/gitops/).
 
+Example:
+
+Define all your secrets, what they look like, and whom can access them.
+
+    ---
+    name: test-team1                        # The name of the Team
+    secrets:                                # Definitions of the Secrets in the Team
+      - name: foo
+        generator:
+          type: alpha                       # A 10 digit alphanumeric secert
+          length: 10
+
+      - name: bar
+        generator:
+          type: hex                         # A 12 digit hexadecimal secret
+          length: 12
+
+      - name: baz
+        generator:
+          type: uuid                        # A UUID secret
+
+      - name: wip
+        generator:
+          type: chbs
+          words: 6                          # A 6 word 'correct-horse-battery-staple' secret.  6 random commonly used words joined by hyphens.
+
+      - name: zoz
+        generator:
+          type: rsa
+          blocksize: 2048                   # A RSA keypair expressed as a secret (Not currently supported)
+          
+      - name: blort                         # I've clearly run out of standard throwaway names here.
+        generator:
+          type: static                      # Static secrets have to be placed manually.  API keys are a good use case for Static Secrets.
+
+      - name: foo.example.com
+        generator:
+          type: tls                         # A TLS Certificate/ Private Key expressed as a secret.
+          cn: foo.example.com
+          ca: service                       # This cert is created off of the 'service' CA
+          sans:
+            - bar.example.com                # Allowed alternate names for this cert
+            - baz.example.com
+          ip_sans:                          # IP SANS allow you to use TLS and target an IP directly
+            - 1.2.3.4
+            
+    roles:                                  # Your Secret Roles  This is what you authenticate to in order to access the Secrets above.
+      - name: app1                          # A role unimaginatively named 'app1'
+        realms:
+          - type: k8s                       # legal types are 'k8s', 'tls', and 'iam'
+            identifiers:
+              - some-k8s-cluster            # for k8s, this is the name of the cluster.  Has no meaning for other realms.
+            principals:
+              - app1                        # for k8s, this is the namespace that's allowed to access the secret
+            environment: production         # each role maps to a single environment.  Which one is this?
+
+          - type: tls                       # 'tls' specifies authenticated by client certs (generally only applies to SL hosts)
+            principals:
+              - fargle.example.com          # for tls, this is the FQDN of the host
+            environment: development        # when this host connects, it gets development secrets
+
+          - type: iam                       # only works if you're running in AWS
+            principals:
+              - "arn:aws:iam::888888888888:role/some-role20201234567890123456789012"
+            environment: staging            # each principal auths to a role in a single environment.
+        secrets:
+          - name: foo                       # These Secrets are defined above.  No 'team' in the config means 'team from this file'
+          - name: wip
+          - name: baz
+            team: test-team2                # This secret is owned by another Team.
+            
+    environments:                           # Environments are just strings.  Use whatever you want.   Many people would like Scribd to use standardized Environment names.  That's a people problem, not a tech problem.  To the code, they're all just strings.
+      - production
+      - staging
+      - development                         # The 'development' environment is special.  If you have one, anyone who can authenticate can access development secrets.  This is intended to ease/ speed development.
+
 ## Introduction
 
 Secrets management is an important job, but it sucks.  There.  I said it.
